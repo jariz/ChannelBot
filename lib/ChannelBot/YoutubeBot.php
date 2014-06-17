@@ -89,15 +89,19 @@ class YoutubeBot {
     }
 
     public function plain($msg) {
-        $this->log($msg, "white");
+        if(isset($this->config->log) && in_array("plain", $this->config->log)) $this->log($msg, "white");
     }
 
     public function info($msg) {
-        $this->log($msg, "cyan");
+        if(isset($this->config->log) && in_array("info", $this->config->log)) $this->log($msg, "cyan");
     }
 
     public function error($msg) {
-        $this->log($msg, "light_red");
+        if(isset($this->config->log) && in_array("error", $this->config->log)) $this->log($msg, "light_red");
+    }
+
+    public function debug($msg) {
+        if(isset($this->config->log) && in_array("debug", $this->config->log)) $this->log($msg, "light_green");
     }
 
     protected function existsAlready($subreddit, $channel=null, $channel_id=null) {
@@ -116,17 +120,38 @@ class YoutubeBot {
 
     protected function Monitor() {
         while(true) {
-            $start = microtime(true);
-            $this->readPMs();
-            $this->monitorChannels();
-            $this->wait($start);
+            try {
+                $start = microtime(true);
+                $this->readPMs();
+                $this->monitorChannels();
+                $this->wait($start);
+            }
+            catch(\Exception $e) {
+                $this->error("Error in monitor loop: {$e->getMessage()}. Restarting loop.");
+            }
         }
     }
 
     public function monitorChannels() {
         foreach($this->channels->getItems() as $index => $channel) {
-            if(!isset($channel->last_check))
-                $channel->last_check = $channel->register_date;
+            if(!isset($channel["last_check"]))
+                $channel["last_check"] = $channel["register_date"];
+
+            foreach($this->youtube->getPlaylistItemsByPlaylistId($channel["upload_playlist"]) as $item) {
+                if($channel["last_check"] < strtotime($item->snippet->publishedAt)) {
+                    //we've got one!
+                    $this->reddit->submit(
+                        $channel["subreddit"],
+                        "url",
+                        $item->snippet->title,
+                        $this->config->prepend.$item->contentDetails->videoId
+                    );
+
+                    $this->info("Submitted \"{$item->snippet->title}\" to /r/{$channel['subreddit']} ");
+                }
+            }
+
+            $this->channels->setItem($index, $channel);
         }
     }
 
@@ -134,6 +159,7 @@ class YoutubeBot {
         $spend = 2000 - (microtime(true) - $start);
         if ($spend > 0) {
             $spend = ($spend * 1000);
+            $this->debug("Waiting {$spend} before issueing next request...");
             usleep($spend);
         }
     }
@@ -163,13 +189,18 @@ class YoutubeBot {
         foreach($messages as $message) {
             /* @var $message \RedditApiClient\Comment */
             try {
+                $this->debug("Received a message!\n------------\n{$message->getBody()}\n------------");
+                $this->debug("Processing message...");
+                $this->debug("- Parsing message...");
                 $config = (object)Yaml::parse($message->getBody(), true, false);
 
                 //validate existence of required fields
+                $this->debug("- Checking required fields...");
                 if(!isset($config->subreddit)) throw new \InvalidArgumentException("Required field 'subreddit' missing");
                 if(!isset($config->channel) && !isset($config->channel_id)) throw new \InvalidArgumentException("Please specify either 'channel' or 'channel_id'");
 
                 //validate subreddit
+                $this->debug("- Validating fields...");
                 $validator = (new Validator())
                     ->string()
                     ->notEmpty()
@@ -203,14 +234,17 @@ class YoutubeBot {
                 }
 
                 //do exist check
+                $this->debug("- Checking if channel/subredit combination already exists...");
                 if($this->existsAlready($config->subreddit, !isset($config->channel) ? null : $config->channel, !isset($config->channel_id) ? null : $config->channel_id))
                     throw new ExistsAlreadyException("This channel/subreddit combination already exists.");
 
                 //do mod check
+                $this->debug("- Checking if {$message->getAuthorName()} is mod of {$config->subreddit}...");
                 if(!$this->isMod($message->getAuthorName(), $config->subreddit))
                     throw new NotAModException("You're either not a mod, or your account doesn't have all permissions on this subreddit.");
 
                 //do yt check
+                $this->debug("- Retrieving and processing channel data from YT API...");
                 if(isset($config->channel)) {
                     $data = $this->youtube->getChannelByName($config->channel);
                 } else {

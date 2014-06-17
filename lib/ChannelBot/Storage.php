@@ -58,6 +58,11 @@ class Storage {
         return $this->cache;
     }
 
+    public function setItem($index, $item) {
+        $this->cache[$index] = $item;
+        $this->write();
+    }
+
 //    public function __get($item) {
 //        if(isset($this->cache[$item])) return null;
 //        else return $this->cache[$item];
