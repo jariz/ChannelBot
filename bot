@@ -1,0 +1,9 @@
+#!/usr/bin/env php
+<?php
+
+//start composer loader
+require_once "vendor/autoload.php";
+
+//start bot
+$bot = new \ChannelBot\YoutubeBot();
+$bot->bootstrap(__DIR__);
