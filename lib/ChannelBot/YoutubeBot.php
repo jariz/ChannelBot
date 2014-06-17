@@ -124,8 +124,9 @@ class YoutubeBot {
     }
 
     public function monitorChannels() {
-        foreach($this->channels->getItems() as $channel) {
-
+        foreach($this->channels->getItems() as $index => $channel) {
+            if(!isset($channel->last_check))
+                $channel->last_check = $channel->register_date;
         }
     }
 
