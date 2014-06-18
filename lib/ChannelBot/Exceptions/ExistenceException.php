@@ -9,6 +9,6 @@
 namespace ChannelBot\Exceptions;
 
 
-class ExistsAlreadyException extends \Exception{
+class ExistenceException extends \Exception{
 
 } 

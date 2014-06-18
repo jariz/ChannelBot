@@ -63,6 +63,19 @@ class Storage {
         $this->write();
     }
 
+    public function removeItem($index) {
+        unset($this->cache[$index]);
+
+        //'rebuild' indexes
+        $new = [];
+        foreach($this->cache as $item) {
+            if($item == null) continue;
+            $new[] = $item;
+        }
+        $this->cache = $new;
+        $this->write();
+    }
+
 //    public function __get($item) {
 //        if(isset($this->cache[$item])) return null;
 //        else return $this->cache[$item];

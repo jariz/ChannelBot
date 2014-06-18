@@ -588,10 +588,10 @@ class Reddit
         $url = 'http://www.reddit.com/api/submit';
         $data = array(
             'uh' => $this->modHash,
-            'kind' => $linkType,
-            'sr' => $subredditName,
             'title' => $title,
+            'kind' => $linkType,
             'url' => $linkUrl,
+            'sr' => $subredditName
         );
 
         $response = $this->sendRequest($verb, $url, $data);
