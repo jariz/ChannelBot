@@ -148,32 +148,42 @@ class YoutubeBot {
     }
 
     public function monitorChannels() {
-        foreach($this->channels->getItems() as $index => $channel) {
-            if(!isset($channel["last_check"]))
-                $channel["last_check"] = $channel["register_date"];
-
+        foreach ($this->channels->getItems() as $index => $channel) {
             try {
-                foreach($this->youtube->getPlaylistItemsByPlaylistId($channel["upload_playlist"]) as $item) {
-                    if($channel["last_check"] <= strtotime($item->snippet->publishedAt)) {
-                        //we've got one!
-                        $success = $this->reddit->submit(
-                            $channel["subreddit"],
-                            "link",
-                            $item->snippet->title,
-                            $this->config->prepend . $item->contentDetails->videoId
-                        );
+                $API_URL = $this->youtube->getApi('playlistItems.list');
+                $params = array(
+                    'playlistId' => $channel["upload_playlist"],
+                    'part' => 'id, snippet, contentDetails, status',
+                    'maxResults' => 1
+                );
+                $apiData = $this->youtube->api_get($API_URL, $params);
+                $items = $this->youtube->decodeList($apiData);
+                if (!isset($items[0])) throw new ExistenceException("Youtube returned a empty array...?");
+                $item = $items[0];
 
-                        if($success) $this->info("Submitted \"{$item->snippet->title}\" from {$channel['channel']} to /r/{$channel['subreddit']}");
-                        else $this->error("Failed submitting \"{$item->snippet->title}\" from {$channel['channel']} to /r/{$channel['subreddit']}");
-                    }
+                //first run?
+                if (!isset($channel["last_video"]))
+                    $channel["last_video"] = $item->contentDetails->videoId;
+
+                if ($channel["last_video"] != $item->contentDetails->videoId) {
+                    //we've got one!
+                    $success = $this->reddit->submit(
+                        $channel["subreddit"],
+                        "link",
+                        $item->snippet->title,
+                        $this->config->prepend . $item->contentDetails->videoId
+                    );
+
+                    if ($success) $this->info("Submitted \"{$item->snippet->title}\" from {$channel['channel']} to /r/{$channel['subreddit']}");
+                    else $this->error("Failed submitting \"{$item->snippet->title}\" from {$channel['channel']} to /r/{$channel['subreddit']}");
+
+                    //update last video
+                    $channel["last_video"] = $item->contentDetails->videoId;
                 }
-            }
-            catch(\Exception $e) {
+
+            } catch (\Exception $e) {
                 $this->error("Error while getting playlist {$channel['upload_playlist']} for channel {$channel['channel_id']} to /r/{$channel['subreddit']}:\n{$e->getMessage()}");
             }
-
-
-            $channel["last_check"] = time();
 
             $this->channels->setItem($index, $channel);
         }
