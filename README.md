@@ -14,4 +14,4 @@ Make sure to enable 'Youtube Data API'
 ```
 ./bot
 ```
-And read the docs on how to configure it's channels here
+[And read the docs on how to configure it's channels here](http://www.reddit.com/r/ChannelBot/wiki/api)
