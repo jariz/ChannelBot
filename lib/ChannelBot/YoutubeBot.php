@@ -181,6 +181,7 @@ class YoutubeBot {
                     $channel["last_video"] = $item->contentDetails->videoId;
                 }
 
+                $channel["last_check"] = time();
             } catch (\Exception $e) {
                 $this->error("Error while getting playlist {$channel['upload_playlist']} for channel {$channel['channel_id']} to /r/{$channel['subreddit']}:\n{$e->getMessage()}");
             }
@@ -256,12 +257,50 @@ class YoutubeBot {
             try {
                 $this->debug("Received a message!\n------------\n{$message->getBody()}\n------------");
                 $this->debug("Processing message...");
+                $this->debug("- Action: {$message->offsetGet("subject")}");
+                $this->debug("- Parsing message...");
+                $config = (object)Yaml::parse($message->getBody(), true, false);
 
                 switch (strtolower($message->offsetGet("subject"))) {
+                    case "list":
+                        //validate existence of required fields
+                        $this->debug("- Checking required fields...");
+                        if (!isset($config->subreddit)) throw new \InvalidArgumentException("Required field 'subreddit' missing");
+
+                        //validate subreddit
+                        $this->debug("- Validating fields...");
+                        $this->validate($config->subreddit, "subreddit");
+
+                        //do mod check
+                        $this->debug("- Checking if {$message->getAuthorName()} is mod of {$config->subreddit}...");
+                        if (!$this->isMod($message->getAuthorName(), $config->subreddit))
+                            throw new NotAModException("You're either not a mod, or your account doesn't have all permissions on this subreddit.");
+
+                        //all checks done, let the magic begin
+                        $reply = "Channel|Channel ID|Time added to CB|User who added it to CB|Last check by CB\n:---|:---|:---|:---|:---|\n";
+                        $hits = 0;
+                        foreach($this->channels->getItems() as $channel) {
+                            $channel = (object)$channel;
+                            if(strtolower($channel->subreddit) == strtolower($config->subreddit)) {
+                                $hits++;
+                                $added = (new \TimeAgo())->inWords(date("Y-m-d H:i:s", $channel->register_date));
+                                $lastcheck = round(time() - $channel->last_check);
+                                $reply .= "{$channel->channel}|{$channel->channel_id}|{$added} ago|{$channel->user}|{$lastcheck} seconds ago\n";
+                            }
+                        }
+                        if($hits == 0) {
+                            $reply = "Sorry, nothing found for that subreddit in particular. Perhaps [add some channels to it](http://www.reddit.com/r/ChannelBot/wiki/api)?";
+                        }
+                        $this->debug($reply);
+                        $this->reddit->sendRequest("POST", "http://www.reddit.com/api/compose", array(
+                            "api_type" => "json",
+                            "subject" => "Results",
+                            "text" => $reply,
+                            "to" => $message->getAuthorName(),
+                            "uh" => $this->reddit->modHash
+                        ));
+                        break;
                     case "add":
-                        $this->debug("- Action: add a channel.");
-                        $this->debug("- Parsing message...");
-                        $config = (object)Yaml::parse($message->getBody(), true, false);
 
                         //validate existence of required fields
                         $this->debug("- Checking required fields...");
@@ -327,10 +366,6 @@ class YoutubeBot {
                         ));
                         break;
                     case "remove":
-                        $this->debug("- Action: remove a channel.");
-                        $this->debug("- Parsing message...");
-                        $config = (object)Yaml::parse($message->getBody(), true, false);
-
                         //validate existence of required fields
                         $this->debug("- Checking required fields...");
                         if (!isset($config->subreddit)) throw new \InvalidArgumentException("Required field 'subreddit' missing");
