@@ -161,11 +161,17 @@ class YoutubeBot {
                 if (!isset($items[0])) throw new ExistenceException("Youtube returned a empty array...?");
                 $item = $items[0];
 
-                //first run?
-                if (!isset($channel["last_video"]))
-                    $channel["last_video"] = $item->contentDetails->videoId;
+                //convert from old format to new?
+                if(isset($channel["last_video"])) {
+                    $channel["last_videos"] = [ $channel["last_video"] ];
+                    unset($channel["last_video"]);
+                }
 
-                if ($channel["last_video"] != $item->contentDetails->videoId) {
+                //first run?
+                if (!isset($channel["last_videos"]))
+                    $channel["last_videos"] = [$item->contentDetails->videoId];
+
+                if (!in_array($item->contentDetails->videoId, $channel["last_videos"])) {
                     //we've got one!
                     $success = $this->reddit->submit(
                         $channel["subreddit"],
@@ -178,7 +184,7 @@ class YoutubeBot {
                     else $this->error("Failed submitting \"{$item->snippet->title}\" from {$channel['channel']} to /r/{$channel['subreddit']}");
 
                     //update last video
-                    $channel["last_video"] = $item->contentDetails->videoId;
+                    $channel["last_videos"][] = $item->contentDetails->videoId;
                 }
 
                 $channel["last_check"] = time();
