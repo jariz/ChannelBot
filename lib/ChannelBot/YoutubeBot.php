@@ -267,7 +267,7 @@ class YoutubeBot {
                 $this->debug("- Parsing message...");
                 $config = (object)Yaml::parse($message->getBody(), true, false);
 
-                switch (strtolower($message->offsetGet("subject"))) {
+                switch ($subject = strtolower($message->offsetGet("subject"))) {
                     case "list":
                         //validate existence of required fields
                         $this->debug("- Checking required fields...");
@@ -416,7 +416,8 @@ class YoutubeBot {
                         ));
                         break;
                     default:
-                        throw new ActionNotSupportedException("Invalid subject. Subject needs to be one of the following:\n'add' OR 'remove'.");
+                        if(strpos($subject, "approved submitter") === false)
+                            throw new ActionNotSupportedException("Invalid subject. Subject needs to be one of the following:\n'add' OR 'remove'.");
                 }
 
 
