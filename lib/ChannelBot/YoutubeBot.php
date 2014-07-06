@@ -338,11 +338,7 @@ class YoutubeBot {
 
                         //do yt check
                         $this->debug("- Retrieving and processing channel data from YT API...");
-                        if (isset($config->channel)) {
-                            $data = $this->youtube->getChannelByName($config->channel);
-                        } else {
-                            $data = $this->youtube->getChannelById($config->channel_id);
-                        }
+                        $data = $this->getChannel(!isset($config->channel) ? $config->channel_id : $config->channel, isset($config->channel_id));
 
                         if (!$data) throw new InvalidChannelException("This channel doesn't exist.");
                         $config->channel_id = $data->id;
@@ -448,6 +444,24 @@ class YoutubeBot {
             //mark as read
             $this->reddit->sendRequest("POST", "http://www.reddit.com/api/read_message", array("id" => $message->getThingId(), "uh" => $this->reddit->modHash));
         }
+    }
+
+    /**
+     * Because the normal getChannelByName/Id functions appear to make youtube give 500's,
+     * I've got my own wrapper of those functions here.
+     * @param $channel string The channel name/id
+     * @param $isId boolean Is the first parameter a channel id?
+     *
+     */
+    protected function getChannel($channel, $isId) {
+        $API_URL = $this->youtube->getApi('channels.list');
+        $params = [
+            'part' => 'id,snippet,contentDetails',
+        ];
+        if($isId) $params["id"] = $channel;
+        else $params["forUsername"] = $channel;
+        $apiData = $this->youtube->api_get($API_URL, $params);
+        return $this->youtube->decodeSingle($apiData);
     }
 
     protected function loadDb() {
