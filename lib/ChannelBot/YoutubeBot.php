@@ -261,6 +261,12 @@ class YoutubeBot {
         foreach($messages as $message) {
             /* @var $message \RedditApiClient\Comment */
             try {
+                if($message->offsetGet("was_comment")) {
+                    $this->debug("Ignored a comment reply from {$message->getAuthorName()}");
+                    //mark as read
+                    $this->reddit->sendRequest("POST", "http://www.reddit.com/api/read_message", array("id" => $message->getThingId(), "uh" => $this->reddit->modHash));
+                    break;
+                }
                 $this->debug("Received a message!\n------------\n{$message->getBody()}\n------------");
                 $this->debug("Processing message...");
                 $this->debug("- Action: {$message->offsetGet("subject")}");
