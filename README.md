@@ -1,9 +1,6 @@
 #ChannelBot
 ChannelBot is a simple bot that posts the latest videos from a certain set of channels to a certain set of subreddits.
 What's special about it is that **most of it's configuration goes trough reddit's PM system.**
-  
-![Screenshot](http://i.imgur.com/FkqlHLq.png)
-  
 ##Setup
 1. Install PHP, on debian/ubuntu:  ```sudo apt-get install php5-cli```  
 On other distributions/platforms: google is your friend.  
@@ -19,3 +16,8 @@ Make sure to enable 'Youtube Data API'
 ./bot
 ```
 [And read the docs on how to configure it's channels here](http://www.reddit.com/r/ChannelBot/wiki/api)
+
+
+  
+![Screenshot](http://i.imgur.com/FkqlHLq.png)
+  
