@@ -5,12 +5,16 @@ What's special about it is that **most of it's configuration goes trough reddit'
 ![Screenshot](http://i.imgur.com/FkqlHLq.png)
   
 ##Setup
-1. Copy config.default.yaml to config.yaml
-2. Enter your settings.
+1. Install PHP, on debian/ubuntu:  ```sudo apt-get install php5-cli```  
+On other distributions/platforms: google is your friend.  
+2. Install composer:  ```curl -sS https://getcomposer.org/installer | php```  
+3. ```composer install```
+4. Copy config.default.yaml to config.yaml
+5. Enter your settings.
 A API key to the Youtube Data API can be retrieved at [Google's Developer Console](http://console.developers.google.com)
 Choose 'server key' and enter your current IP address.
 Make sure to enable 'Youtube Data API'
-3. Done. Start the bot with:
+6. Done. Start the bot with:
 ```
 ./bot
 ```
