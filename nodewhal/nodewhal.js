@@ -212,7 +212,7 @@ function NodewhalSession(userAgent) {
     if (is_self) {
       url += "&is_self=" + is_self;
     }
-    console.log('stream start:', url);
+//    console.log('stream start:', url);
     self.es = new EventSource(url);
     if (cb != null) {
       self.es.onmessage = function (e) {
@@ -225,7 +225,7 @@ function NodewhalSession(userAgent) {
         self.newSubmissions.push(JSON.parse(e.data));
       };
       self.es.onerror = function () {
-        console.log("Error in the submission stream.");
+//        console.log("Error in the submission stream.");
       }
     }
   };
@@ -321,7 +321,7 @@ function NodewhalSession(userAgent) {
           throw e;
         }
         if (json && json.error) {
-          console.log('error', json);
+//          console.log('error', json);
           throw Error(json.error);
         }
         return json;
@@ -341,9 +341,9 @@ Nodewhal.schedule = schedule;
 Nodewhal.rsvpRequest = function (method, url, opts) {
   return new RSVP.Promise(function (resolve, reject) {
     if (url.indexOf('api/login') === -1 && method === 'post') {
-      console.log(method, url, JSON.stringify(opts.form));
+//      console.log(method, url, JSON.stringify(opts.form));
     } else {
-      console.log(method, url);
+//      console.log(method, url);
     }
     if (!method || method === 'get') {
       method = request;
