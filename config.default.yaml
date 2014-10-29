@@ -1,5 +1,0 @@
-username: YourUsername
-password: YourPassword
-yt_key: Y0urK3y
-log: [info, error, plain] # Add debug to this array to get diagnostic output
-prepend: https://www.youtube.com/watch?v= #url that is prepended for video id's in submitted links
