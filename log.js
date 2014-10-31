@@ -1,0 +1,37 @@
+var chalk = require("chalk"),
+    figures = require("figures");
+
+var Log = {
+    config: undefined,
+
+    loading: function (what) {
+        process.stdout.write(chalk.bold("Loading " + what + "... "));
+    },
+
+    loadingOK: function () {
+        process.stdout.write(chalk.green(figures.tick) + " OK!\n");
+    },
+
+    loadingFail: function (error) {
+        process.stdout.write(chalk.red(figures.cross) + " Fail\n");
+        if (error) throw error;
+        else process.exit(1);
+    },
+
+    error: function (msg) {
+        if (!config || (config && config.log.indexOf('error') != -1))
+            process.stdout.write(chalk.red(msg) + "\n");
+    },
+
+    info: function (msg) {
+        if (!config || (config && config.log.indexOf('info') != -1))
+            process.stdout.write(chalk.blue(msg) + "\n");
+    },
+
+    debug: function(debug) {
+        if (!config || (config && config.log.indexOf('debug') != -1))
+            process.stdout.write(chalk.blue(msg) + "\n");
+    }
+};
+
+module.exports = Log;

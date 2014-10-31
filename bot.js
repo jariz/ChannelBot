@@ -5,6 +5,7 @@ var reddit = require("./nodewhal/nodewhal"),
     figures = require("figures"),
     storage = require("./storage"),
     youtube = require("youtube-get"),
+    log = require("./log"),
     version = "ChannelBot 2.0",
     config;
 
@@ -17,32 +18,50 @@ init = function () {
     try {
         //start the init
 
-        loading("configuration");
-        config = yaml.safeLoad(fs.readFileSync("config.yaml", "utf-8"));
-        loadingOK();
+        log.loading("configuration");
+        config = log.config = yaml.safeLoad(fs.readFileSync("config.yaml", "utf-8"));
+        log.loadingOK();
 
-        loading("database");
+        log.loading("database");
         storage = new storage();
-        loadingOK();
+        log.loadingOK();
 
-        loading("youtube");
+        log.loading("youtube");
         youtube = new youtube(config.yt_key);
-        loadingOK();
+        log.loadingOK();
 
-        loading("reddit");
+        log.loading("reddit");
         reddit = new reddit(version);
         reddit.login(config.username, config.password).then(function() {
-            loadingOK();
+            log.loadingOK();
 
             //all systems go
             monitor.start();
 
         });
     } catch (e) {
-        loadingFail(e);
+        log.loadingFail(e);
     }
 };
 
+markPMRead = function(id) {
+    reddit.post("/api/read_message", { form: {
+        "id": id,
+        "uh": reddit.session.modhash
+    }});
+};
+
+sendPM = function (subject, message) {
+    reddit.post("/api/", {
+        form: {
+        "api_type": "hi"
+    }
+    });
+};
+
+/**
+ * monitor monitors incoming PM's, uploads
+ */
 monitor = {
     start: function () {
         setInterval(this.pms, 2500) || this.pms();
@@ -54,36 +73,33 @@ monitor = {
             keys.length && keys.forEach(function(key) {
                 var pm = data[key];
                 //handle pm
-                this.info("received: "+pm.subject);
+                handler.PM(pm);
             })
         });
 
     }
 };
 
-loading = function (what) {
-    process.stdout.write(chalk.bold("Loading " + what + "... "));
-};
+handler = {
+    PM: function(pm) {
 
-loadingOK = function () {
-    process.stdout.write(chalk.green(figures.tick) + " OK!\n");
-};
+        if(pm.was_comment) {
+            log.debug("Ignored a comment reply from "+pm.author);
+            markPMRead(pm.id);
+            return;
+        }
 
-loadingFail = function (error) {
-    process.stdout.write(chalk.red(figures.cross) + " Fail\n");
-    if (error) throw error;
-    else process.exit(1);
-};
+        switch(pm.subject.toLowerCase()) {
+            case "add":
 
-error = function (msg) {
-    if (!config || (config && config.log.indexOf('error') != -1))
-        process.stdout.write(chalk.red(msg) + "\n");
-};
+                break;
+            default:
 
-info = function (msg) {
-    if (!config || (config && config.log.indexOf('info') != -1))
-        process.stdout.write(chalk.blue(msg) + "\n");
-};
+                break;
+        }
+
+    }
+}
 
 
 init();
