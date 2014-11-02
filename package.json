@@ -26,8 +26,10 @@
     "eventsource": "0.0.10",
     "figures": "~1.3.3",
     "js-yaml": "~3.2.2",
+    "log-errors": "^4.1.0",
     "request": "2.27.0",
     "rsvp": "2.0.4",
+    "validate-obj": "^0.8.4",
     "youtube-get": "0.0.2"
   }
 }
