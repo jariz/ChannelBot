@@ -1,4 +1,4 @@
-var reddit = require("./nodewhal/nodewhal"),
+var reddit = require("nodewhal"),
     chalk = require("chalk"),
     yaml = require("js-yaml"),
     fs = require("fs"),
@@ -73,20 +73,15 @@ sendPM = function (subject, message, to) {
  * validators provides some extra validation functions that validate-obj doesn't have
  */
 validators = function() {
-    validate.register("isAlphaNum", function(value, params) {
+    validate.register("isAlphaNum", validate.build(function(value, params) {
         if(params && params[0]) var additional = params[0];
         else additional = "";
 
         var reg = new RegExp("^[a-zA-Z0-9"+additional+"]+$")
         return /^[a-zA-Z0-9]+$/.test(value);
     }, function(name) {
-        return name + " isn't a alphanumeric string"
-    });
-//    validate.register("noWhiteSpaces", function(value) {
-//        return !/ /.test(value);
-//    }, function(name) {
-//        return name + " contains whitespaces";
-//    });
+        return name + " must be a alphanumeric string"
+    }));
 }
 
 /**
@@ -141,6 +136,7 @@ handler = {
             //parse contents
             try {
                 var message = yaml.safeLoad(pm.body);
+                if(validate.hasErrors(message, validate.isObject)) throw "YAML didn't return a object";
             } catch(e) {
                 markReadAndRespond("Unable to parse your message", "Your message contains invalid YAML. For more info, read the [API docs](http://www.reddit.com/r/ChannelBot/wiki/api) and [YAML formatting](https://en.wikipedia.org/wiki/YAML)");
                 return;
@@ -156,11 +152,11 @@ handler = {
                         channel: [validate.isString, validate.minLength([1]), validate.isAlphaNum],
 
                         selfCrossValidators: function(message) {
-                            if(!("channel" in message && "channel_id" in message)) return "Please provide either 'channel' or 'channel_id'"
+                            if(!"channel" in message && !"channel_id" in message) return "Please provide either 'channel' or 'channel_id'"
                         }
                     };
 
-                    var errors = validate.hasErrors(message);
+                    var errors = validate.hasErrors(message, validation, 'message');
                     if(errors) {
                         var reply = "The following error{0} occurred while validating your message: \n\n".format(errors.length > 1 ? "s" : "");
                         errors.forEach(function(error) {

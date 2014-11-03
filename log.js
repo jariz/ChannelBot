@@ -28,13 +28,11 @@ var Log = {
                 logerrors.production(error);
             }
         }
-
-
     },
 
     info: function (msg) {
         if (!this.config || (this.config && this.config.log.indexOf('info') != -1))
-            process.stdout.write(figures.info + " " + chalk.blue(msg) + "\n");
+            process.stdout.write(chalk.blue(figures.info + " " + msg) + "\n");
     },
 
     debug: function(msg) {
