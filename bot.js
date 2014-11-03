@@ -11,7 +11,6 @@ var reddit = require("nodewhal"),
     redditurl = "http://www.reddit.com",
     config;
 
-
 init = function () {
 
     validators();
