@@ -1,4 +1,4 @@
-var reddit = require("nodewhal"),
+var reddit = require("reddit-api"),
     chalk = require("chalk"),
     yaml = require("js-yaml"),
     fs = require("fs"),
@@ -9,7 +9,7 @@ var reddit = require("nodewhal"),
     validate = require("validate-obj"),
     version = "ChannelBot 2.0",
     redditurl = "http://www.reddit.com",
-    config;
+    config, modhash;
 
 init = function () {
 
@@ -35,14 +35,15 @@ init = function () {
 
         log.loading("reddit");
         reddit = new reddit(version);
-        reddit.login(config.username, config.password).then(function() {
-            log.loadingOK();
+        reddit.account.login(config.username, config.password, function(error, data) {
+            checkmodhash(data);
+            if(error) log.loadingFail(error);
+            else {
+                log.loadingOK();
 
-            //all systems go
-            monitor.start();
-
-        }, function() {
-            log.loadingFail();
+                //all systems go
+                monitor.start();
+            }
         });
     } catch (e) {
         log.loadingFail(e);
@@ -50,21 +51,19 @@ init = function () {
 };
 
 markPMRead = function(name) {
-    reddit.post(redditurl+"/api/read_message", { form: {
+    reddit._post(redditurl+"/api/read_message", {
         "id": name,
-        "uh": reddit.session.modhash
-    }});
+        "uh": modhash
+    });
 };
 
 sendPM = function (subject, message, to) {
-    reddit.post(redditurl+"/api/compose", {
-        form: {
+    reddit._post(redditurl+"/api/compose", {
             "api_type": "json",
             "subject": subject,
             "text": message,
             "to": to,
-            "uh": reddit.session.modhash
-        }
+            "uh": modhash
     });
 };
 
@@ -93,12 +92,17 @@ monitor = {
 
     pms: function () {
         try {
-            var unread = reddit.listing('/message/unread').then(function(data) {
+            var unread = reddit.messages.get('unread', function(err, data) {
+                checkmodhash(data);
+                if(err) {
+                    log.error("Can't get unread messages", err);
+                    return;
+                }
                 var keys = Object.keys(data);
                 keys.length && keys.forEach(function (key) {
                     var pm = data[key];
                     //handle pm
-                    handler.PM(pm);
+                    handler.PM(pm.data);
                 })
             });
         } catch(e) {
@@ -108,6 +112,19 @@ monitor = {
 };
 
 /**
+ * todo api should keep track of this, @michaelowens pls
+ */
+var checkmodhash = function(data) {
+    try {
+        if(!data) return;
+        if(typeof data == "string") modhash = data;
+        else if(typeof data.modhash == "string") modhash = data.modhash;
+    } catch(E) {
+        debugger;
+    }
+}
+
+/**
  * handler processes actions the monitor picks up
  */
 handler = {
@@ -115,14 +132,14 @@ handler = {
 
         var markReadAndRespond = function(subject, message) {
             log.info("Responded with '"+subject+"'")
-            sendPM(subject, message, pm.author);
-            markPMRead(pm.name);
+            reddit.messages.compose("", "", subject, message, pm.author, modhash, checkmodhash);
+            reddit.messages.read(pm.name, modhash, checkmodhash);
         };
 
         try {
             if(pm.was_comment) {
                 log.debug("Ignored a comment reply from "+pm.author);
-                markPMRead(pm.name);
+                reddit.messages.read(pm.name, modhash, checkmodhash);
                 return;
             }
 
@@ -147,7 +164,7 @@ handler = {
 
                     var validation = {
                         subreddit: [validate.required, validate.isString, validate.minLength([1]), validate.isAlphaNum(["_"])],
-                        channel_id: [validate.isString, validate.minLength([24]), validate.maxLength([24])],
+                        channel_id: [validate.isString, validate.minLength([24]), validate.maxLength([24]), validate.isAlphaNum(["_-"])],
                         channel: [validate.isString, validate.minLength([1]), validate.isAlphaNum],
 
                         selfCrossValidators: function(message) {

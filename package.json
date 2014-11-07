@@ -28,6 +28,6 @@
     "log-errors": "^4.1.0",
     "validate-obj": "^0.8.4",
     "youtube-get": "0.0.2",
-    "nodewhal": "git://github.com/michaelowens/nodewhal"
+    "reddit": "git://github.com/michaelowens/reddit-api"
   }
 }
