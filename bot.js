@@ -50,23 +50,6 @@ init = function () {
     }
 };
 
-markPMRead = function(name) {
-    reddit._post(redditurl+"/api/read_message", {
-        "id": name,
-        "uh": modhash
-    });
-};
-
-sendPM = function (subject, message, to) {
-    reddit._post(redditurl+"/api/compose", {
-            "api_type": "json",
-            "subject": subject,
-            "text": message,
-            "to": to,
-            "uh": modhash
-    });
-};
-
 /**
  * validators provides some extra validation functions that validate-obj doesn't have
  */
@@ -124,19 +107,55 @@ var checkmodhash = function(data) {
     }
 }
 
+var checker = {
+    isMod: function(subreddit, author, callback) {
+        reddit._get("/r/{0}/about/moderators.json".format(subreddit), {}, {} , function(err, data) {
+            if(err) callback(err);
+
+            try {
+                var yes = false;
+                data.body.data.children.forEach(function(user) {
+                    if(user.name.toLowerCase() === author.toLowerCase()) {
+                        if(user.mod_permissions.indexOf("all") !== -1) yes = true;
+                    }
+                });
+                if(!yes) callback(new Error("You're not a moderator of this subreddit (with full permissions)"))
+                else callback(null);
+            } catch(e) {
+                callback(err);
+            }
+        });
+    },
+
+    channelExists: function(channel, isId, callback) {
+        var params = {
+            part: 'id,snippet,contentDetails'
+        };
+        if(isId) params.id = channel;
+        else params.forUsername = channel;
+
+        youtube("channels", params, callback);
+    },
+
+
+};
+
 /**
  * handler processes actions the monitor picks up
  */
 handler = {
+    PMshandled: [],
     PM: function(pm) {
 
-        var markReadAndRespond = function(subject, message) {
+        var markReadAndRespond = function(subject, message, success) {
             log.info("Responded with '"+subject+"'")
-            reddit.messages.compose("", "", subject, message, pm.author, modhash, checkmodhash);
+            reddit.messages.compose("", "", subject, (!success ? "**✖** " : "**✔** ") + message, pm.author, modhash, checkmodhash);
             reddit.messages.read(pm.name, modhash, checkmodhash);
         };
 
         try {
+            if(this.PMshandled.indexOf(pm.name) != -1) return;
+            else this.PMshandled.push(pm.name);
             if(pm.was_comment) {
                 log.debug("Ignored a comment reply from "+pm.author);
                 reddit.messages.read(pm.name, modhash, checkmodhash);
@@ -145,7 +164,7 @@ handler = {
 
             log.info("Got a message from '{0}' with the subject '{1}'!".format(pm.author, pm.subject));
 
-            log.debug("\n----------------\n"+pm.body+"\n----------------");
+            log.debug("\n----------------\n{0}\n----------------".format(pm.body));
             log.debug("Processing message:")
             log.debug(figures.pointer+" Parsing...");
 
@@ -160,6 +179,7 @@ handler = {
 
             switch(pm.subject.toLowerCase()) {
                 case "add":
+                    //validate inputs
                     log.debug(figures.pointer+" Validating fields");
 
                     var validation = {
@@ -183,7 +203,33 @@ handler = {
                         return;
                     }
 
-                    markReadAndRespond("yay", "Successful. I should add something but I'm not programmed to do so yet");
+                    //check if author is mod of sub
+                    log.debug(figures.pointer+" Checking if user is mod...");
+                    checker.isMod(message.subreddit, pm.author, function(error) {
+                        if(error) {
+                            log.warn("Mod check not succeeded", error.toString())
+                            markReadAndRespond("Mod check failed", error.toString());
+                        } else {
+                            //check if channel exists
+                            log.debug(figures.pointer+" Checking if provided channel is valid");
+                            checker.channelExists(message.channel_id ? message.channel_id : message.channel, !!message.channel_id, function(error, data) {
+                                if(error) {
+                                    log.warn("Youtube check did not succeed", error.toString())
+                                    markReadAndRespond("The check if your channel is valid has failed.", error.toString());
+                                } else {
+                                    try {
+                                        data = data.items[0];
+                                        message.channel_id = data.id;
+                                        message.channel = data.snippet.title;
+                                        message.upload_playlist = data.contentDetails.relatedPlaylists.uploads;
+                                    } catch(e) {
+                                        markReadAndRespond("Unable to read channel data.", "Check if your uploads are accessible for everyone.");
+                                    }
+                                    debugger;
+                                }
+                            });
+                        }
+                    });
 
                     break;
                 default:

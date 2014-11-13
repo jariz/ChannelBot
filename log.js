@@ -38,6 +38,11 @@ var Log = {
     debug: function(msg) {
         if (!this.config || (this.config && this.config.log.indexOf('debug') != -1))
             process.stdout.write(chalk.green(figures.circleCircle+ " " + msg) + "\n");
+    },
+
+    warn: function(msg) {
+        if (!this.config || (this.config && this.config.log.indexOf('warn') != -1))
+            process.stdout.write(chalk.yellow(figures.warning+ " " + msg) + "\n");
     }
 };
 
