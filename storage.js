@@ -34,6 +34,10 @@ var Storage = function(file) {
         return cache[index];
     };
 
+    this.getAll = function() {
+        return cache;
+    }
+
     read();
 
     return this;

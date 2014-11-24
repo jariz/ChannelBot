@@ -25,7 +25,7 @@ init = function () {
         config = log.config = yaml.safeLoad(fs.readFileSync("config.yaml", "utf-8"));
         log.loadingOK();
 
-        log.loading("database");
+        log.loading("storage");
         storage = new storage();
         log.loadingOK();
 
@@ -71,6 +71,7 @@ validators = function() {
 monitor = {
     start: function () {
         setInterval(this.pms, 2500) || this.pms();
+        setInterval(this.videos, 2500) || this.videos();
     },
 
     pms: function () {
@@ -91,6 +92,49 @@ monitor = {
         } catch(e) {
             log.error("Error in monitor.pm thread", e);
         }
+    },
+
+    videos: function() {
+        storage.getAll().forEach(function (channel, index) {
+            youtube("playlistItems", {
+                playlistId: channel.upload_playlist,
+                part: 'id, snippet, contentDetails, status'
+            }, function (error, data) {
+                if(error) log.error("Failed to get data for channel '{0}'".format(channel.channel), error)
+                else {
+                    if(!('last_videos' in channel)) channel.last_videos = [];
+
+                    data.items.forEach(function(video) {
+                        var vid = video.contentDetails.videoId;
+                        if(channel.last_videos.indexOf(vid) == -1) {
+                            //we've got one!
+
+                            //was this video published after registering this channel to CB?
+                            if(Math.round(new Date(video.snippet.publishedAt) / 1000) < channel.register_date) {
+                                return;
+                            }
+
+                            reddit.links.submit({
+                                subreddit: channel.subreddit,
+                                subject: video.snippet.title,
+                                url: config.prepend + video.contentDetails.videoId,
+                                modhash: modhash
+                            }, function(data, error) {
+                                checkmodhash(data);
+                                if(error) {
+                                    log.warn("Failed to submit \"{0}\", trying again later.".format(video.snippet.title), error);
+                                    return
+                                } else {
+                                    log.info("Submitted \"{0}\" from \"{1}\" to /r/{2}".format(video.snippet.title, channel.channel, channel.subreddit));
+                                }
+                            });
+                        }
+                        channel.last_check = Math.round(new Date() / 1000);
+                        storage.set(index, channel);
+                    });
+                }
+            });
+        })
     }
 };
 
@@ -102,9 +146,7 @@ var checkmodhash = function(data) {
         if(!data) return;
         if(typeof data == "string") modhash = data;
         else if(typeof data.modhash == "string") modhash = data.modhash;
-    } catch(E) {
-        debugger;
-    }
+    } catch(e) {}
 }
 
 var checker = {
@@ -137,7 +179,11 @@ var checker = {
         youtube("channels", params, callback);
     },
 
-
+    channelAlreadyExistsInStorage: function(channel_id) {
+        return storage.getAll().some(function(row) {
+            return row.channel_id == channel_id;
+        });
+    }
 };
 
 /**
@@ -173,6 +219,7 @@ handler = {
                 var message = yaml.safeLoad(pm.body);
                 if(validate.hasErrors(message, validate.isObject)) throw "YAML didn't return a object";
             } catch(e) {
+                log.warn(e.toString());
                 markReadAndRespond("Unable to parse your message", "Your message contains invalid YAML. For more info, read the [API docs](http://www.reddit.com/r/ChannelBot/wiki/api) and [YAML formatting](https://en.wikipedia.org/wiki/YAML)");
                 return;
             }
@@ -223,9 +270,35 @@ handler = {
                                         message.channel = data.snippet.title;
                                         message.upload_playlist = data.contentDetails.relatedPlaylists.uploads;
                                     } catch(e) {
-                                        markReadAndRespond("Unable to read channel data.", "Check if your uploads are accessible for everyone.");
+                                        markReadAndRespond(
+                                            "Could not get channel details.",
+                                            "Check if your uploads are accessible to everyone and if you didn't misspell the channel (id)."
+                                        );
+                                        return;
                                     }
-                                    debugger;
+
+                                    //check if combination already exists in storage
+                                    if(!checker.channelAlreadyExistsInStorage(message.channel_id)) {
+
+                                        storage.push({
+                                            "channel": message.channel,
+                                            "channel_id": message.channel_id,
+                                            "subreddit": message.subreddit,
+                                            "user": pm.author,
+                                            //yea, epoch because we need to conform to the old format
+                                            "register_date": Math.floor(new Date() / 1000),
+                                            "upload_playlist": message.upload_playlist
+                                        });
+                                        markReadAndRespond(
+                                            "Successfully added {0}.".format(message.channel),
+                                            message.channel+" was added and will now be monitored for new uploads.",
+                                            true
+                                        );
+                                    } else markReadAndRespond(
+                                        "This channel is already added to this subreddit.",
+                                        "This channel+subreddit combination is already added."
+                                    )
+
                                 }
                             });
                         }
