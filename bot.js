@@ -96,40 +96,84 @@ monitor = {
 
     videos: function() {
         storage.getAll().forEach(function (channel, index) {
+            if(!channel) return;
+
             youtube("playlistItems", {
                 playlistId: channel.upload_playlist,
                 part: 'id, snippet, contentDetails, status'
             }, function (error, data) {
-                if(error) log.error("Failed to get data for channel '{0}'".format(channel.channel), error)
+                if(data == null) error = "API returned null.";
+                if(error) {
+                    if(!('error_count' in channel)) channel.error_count = 0;
+                    if(!('error_last' in channel)) channel.error_last = Math.floor(new Date() / 1000);
+
+                    if((Math.floor(new Date() / 1000)) - channel.error_last > 43200) {
+                        //last error was longer than 12 hours ago? reset error count.
+                        channel.error_count = 0;
+                        log.debug("Last error 12 hours ago, resetting error count.")
+                    }
+                    if(channel.error_count < config.attempts) {
+                        channel.error_last = Math.floor(new Date() / 1000);
+                        channel.error_count++;
+                        storage.set(index, channel);
+                        log.warn("Failed to get data for channel \"{0}\", attempt {1} of {2}".format(channel.channel, channel.error_count, config.attempts));
+                    }
+                    else {
+                        log.info("Channel \"{0}\" has too many errors, messaging owner and removing from storage.".format(channel.channel));
+                        var msg =
+                            ("Hello {0}, there were multiple problems in a short period when I tried submitting content from your channel \"{1}\" to /r/{2}.\n\n" +
+                            "To save up on bandwidth, and to not overload google's API's, I have removed your channel from my database.\n\n" +
+                            "You can readd this channel by sending the following message: http://www.reddit.com/message/compose/?to={3}&subject=add&message=subreddit:%20{2}%0Achannel_id:%20{4}")
+                                .format(channel.user, channel.channel, channel.subreddit, config.username, channel.channel_id);
+                        log.debug("Messaging owner\n\n"+msg);
+                        reddit.messages.compose(
+                            "",
+                            "",
+                            "Your channel was removed from my database.",
+                            msg,
+                            channel.user,
+                            modhash,
+                            checkmodhash
+                        );
+                        log.debug("Removing {0} from storage...".format(index));
+                        storage.remove(index);
+                    }
+                }
                 else {
                     if(!('last_videos' in channel)) channel.last_videos = [];
 
                     data.items.forEach(function(video) {
+                        channel.last_check = Math.floor(new Date() / 1000);
                         var vid = video.contentDetails.videoId;
                         if(channel.last_videos.indexOf(vid) == -1) {
                             //we've got one!
 
                             //was this video published after registering this channel to CB?
-                            if(Math.round(new Date(video.snippet.publishedAt) / 1000) < channel.register_date) {
+                            if(Math.floor(new Date(video.snippet.publishedAt) / 1000) < channel.register_date) {
                                 return;
                             }
 
-                            reddit.links.submit({
-                                subreddit: channel.subreddit,
-                                subject: video.snippet.title,
-                                url: config.prepend + video.contentDetails.videoId,
-                                modhash: modhash
-                            }, function(data, error) {
-                                checkmodhash(data);
-                                if(error) {
-                                    log.warn("Failed to submit \"{0}\", trying again later.".format(video.snippet.title), error);
-                                    return
-                                } else {
-                                    log.info("Submitted \"{0}\" from \"{1}\" to /r/{2}".format(video.snippet.title, channel.channel, channel.subreddit));
-                                }
-                            });
+                            if(!config.dry) {
+                                reddit.links.submit({
+                                    subreddit: channel.subreddit,
+                                    subject: video.snippet.title,
+                                    url: config.prepend + video.contentDetails.videoId,
+                                    modhash: modhash
+                                }, function(data, error) {
+                                    checkmodhash(data);
+                                    if(error) {
+                                        log.warn("Failed to submit \"{0}\", trying again later.".format(video.snippet.title), error);
+                                        return
+                                    } else {
+                                        log.info("Submitted \"{0}\" from \"{1}\" to /r/{2}".format(video.snippet.title, channel.channel, channel.subreddit));
+                                    }
+                                });
+                            } else {
+                                log.warn("Prevented submission because dryrun mode is enabled. tried submitting \"{0}\" from \"{1}\" to /r/{2}".format(video.snippet.title, channel.channel, channel.subreddit));
+                            }
+                            channel.last_videos.push(vid);
                         }
-                        channel.last_check = Math.round(new Date() / 1000);
+
                         storage.set(index, channel);
                     });
                 }
@@ -179,9 +223,10 @@ var checker = {
         youtube("channels", params, callback);
     },
 
-    channelAlreadyExistsInStorage: function(channel_id) {
+    channelAlreadyExistsInStorage: function(channel_id, subreddit) {
         return storage.getAll().some(function(row) {
-            return row.channel_id == channel_id;
+            if(!row) return false;
+            return row.channel_id == channel_id && row.subreddit.toLowerCase() == subreddit.toLowerCase();
         });
     }
 };
@@ -278,7 +323,7 @@ handler = {
                                     }
 
                                     //check if combination already exists in storage
-                                    if(!checker.channelAlreadyExistsInStorage(message.channel_id)) {
+                                    if(!checker.channelAlreadyExistsInStorage(message.channel_id, message.subreddit)) {
 
                                         storage.push({
                                             "channel": message.channel,
@@ -305,6 +350,80 @@ handler = {
                     });
 
                     break;
+                case "remove":
+                    //validate inputs
+                    log.debug(figures.pointer+" Validating fields");
+
+                    var validation = {
+                        subreddit: [validate.required, validate.isString, validate.minLength([1]), validate.isAlphaNum(["_"])],
+                        channel_id: [validate.isString, validate.minLength([24]), validate.maxLength([24]), validate.isAlphaNum(["_-"])],
+                        channel: [validate.isString, validate.minLength([1]), validate.isAlphaNum],
+
+                        selfCrossValidators: function(message) {
+                            if(!"channel" in message && !"channel_id" in message) return "Please provide either 'channel' or 'channel_id'"
+                        }
+                    };
+
+                    var errors = validate.hasErrors(message, validation, 'message');
+                    if(errors) {
+                        var reply = "The following error{0} occurred while validating your message: \n\n".format(errors.length > 1 ? "s" : "");
+                        errors.forEach(function(error) {
+                            reply += "\n\n- {0}\n\n".format(error);
+                        });
+                        reply += "\n\nDon't forget to read the [docs](http://www.reddit.com/r/ChannelBot/wiki/api)";
+                        markReadAndRespond("Unable to add channel", reply);
+                        return;
+                    }
+
+                    //check if author is mod of sub
+                    log.debug(figures.pointer+" Checking if user is mod...");
+                    checker.isMod(message.subreddit, pm.author, function(error) {
+                        if(error) {
+                            log.warn("Mod check not succeeded", error.toString())
+                            markReadAndRespond("Mod check failed", error.toString());
+                        } else {
+                            //check if channel exists
+                            log.debug(figures.pointer+" Checking if provided channel is valid");
+                            checker.channelExists(message.channel_id ? message.channel_id : message.channel, !!message.channel_id, function(error, data) {
+                                if(error) {
+                                    log.warn("Youtube check did not succeed", error.toString())
+                                    markReadAndRespond("The check if your channel is valid has failed.", error.toString());
+                                } else {
+                                    try {
+                                        data = data.items[0];
+                                        var channel_id = data.id;
+                                    } catch(e) {
+                                        markReadAndRespond(
+                                            "Could not get channel details.",
+                                            "Check if your uploads are accessible to everyone and if you didn't misspell the channel (id)."
+                                        );
+                                        return;
+                                    }
+
+                                    //check if combination already exists in storage
+                                    if(checker.channelAlreadyExistsInStorage(channel_id, message.subreddit)) {
+
+                                        var index;
+                                        storage.getAll().forEach(function(row, i) {
+                                            if(!row) return;
+                                            if(row.channel_id == channel_id && row.subreddit.toLowerCase() == subreddit.toLowerCase()) index = i;
+                                        });
+
+                                        storage.remove(index);
+
+                                        markReadAndRespond(
+                                            "Successfully removed {0}.".format(message.channel),
+                                            "{0} was added and will now be monitored for new uploads.",
+                                            true
+                                        );
+                                    } else markReadAndRespond(
+                                        "This channel doesn't exist",
+                                        "This channel+subreddit combination does not exist. Try running [a list command](http://www.reddit.com/message/compose/?to={0}&subject=list&message=subreddit:%20{1})".format(config.username, message.subreddit.toLowerCase())
+                                    )
+                                }
+                            });
+                        }
+                    });
                 default:
                     markReadAndRespond("Invalid subject.", "Subject needs to be one of the following:\n\n'add', 'list' OR 'remove'.")
                     break;

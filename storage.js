@@ -13,7 +13,7 @@ var Storage = function(file) {
     };
 
     var write = function() {
-        fs.writeFile(file, JSON.stringify(cache));
+        fs.writeFileSync(file, JSON.stringify(cache));
     };
 
     this.push = function(item) {
@@ -22,7 +22,8 @@ var Storage = function(file) {
     };
 
     this.remove = function(index) {
-        cache = cache.map
+        cache[index] = null;
+        write();
     };
 
     this.set = function(index, item) {
