@@ -64,7 +64,7 @@ class Reddit
     public function login($username, $password)
     {
         $request = new HttpRequest;
-        $request->setUrl('http://www.reddit.com/api/login/' . $username);
+        $request->setUrl('https://www.reddit.com/api/login');
         $request->setHttpMethod('POST');
         $request->setPostVariable('user', $username);
         $request->setPostVariable('passwd', $password);
