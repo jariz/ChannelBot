@@ -1,0 +1,41 @@
+{
+  "name": "ChannelBot",
+  "version": "2.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jariz/ChannelBot.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/jariz/ChannelBot/issues"
+  },
+  "homepage": "https://github.com/jariz/ChannelBot#readme",
+  "dependencies": {
+    "asciify": "^1.3.5",
+    "async": "^2.1.2",
+    "babel-plugin-syntax-async-functions": "^6.13.0",
+    "babel-plugin-transform-async-to-generator": "^6.16.0",
+    "babel-plugin-transform-class-properties": "^6.16.0",
+    "babel-polyfill": "^6.16.0",
+    "babel-preset-stage-0": "^6.16.0",
+    "blessed": "^0.1.81",
+    "chalk": "^1.1.3",
+    "figures": "^1.7.0",
+    "googleapis": "^14.0.0",
+    "lowdb": "^0.13.1",
+    "snoowrap": "^1.10.0",
+    "winston": "^2.2.0"
+  },
+  "devDependencies": {
+    "babel-eslint": "^7.0.0",
+    "eslint": "^3.7.1",
+    "eslint-config-es2015": "^1.1.0"
+  }
+}

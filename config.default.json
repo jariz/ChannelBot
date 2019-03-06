@@ -1,0 +1,10 @@
+{
+    "level": "debug",
+    "concurrency": 4,
+    "reddit": {
+        "clientId": "",
+        "clientSecret": "",
+        "username": "",
+        "password": ""
+    }
+}
